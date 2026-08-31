@@ -7,12 +7,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="GM.RateLimiting" Version="1.0.0" />
-        <PackageReference Include="GM.RateLimiting.Http" Version="1.0.0" />
-        <PackageReference Include="GM.RateLimiting.Redis" Version="1.0.0" />
-        <PackageReference Include="GM.Caching" Version="1.0.0" />
-        <PackageReference Include="GM.Caching.Redis" Version="1.0.0" />
-        <PackageReference Include="GM.DistributedLock" Version="1.0.0" />
+        <PackageReference Include="GM.RateLimiting" Version="1.0.1" />
+        <PackageReference Include="GM.RateLimiting.Http" Version="1.0.1" />
+        <PackageReference Include="GM.RateLimiting.Redis" Version="1.0.1" />
+        <PackageReference Include="GM.Caching" Version="1.0.1" />
+        <PackageReference Include="GM.Caching.Redis" Version="1.0.1" />
+        <PackageReference Include="GM.DistributedLock" Version="1.0.2" />
     </ItemGroup>
 
 </Project>

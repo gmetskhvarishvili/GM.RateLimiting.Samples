@@ -4,6 +4,7 @@ using GM.DistributedLock;
 using GM.RateLimiting;
 using GM.RateLimiting.Http;
 using GM.RateLimiting.Redis;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +37,8 @@ builder.Services.AddGMRateLimitingHttp(o =>
     o.DefaultPartition = RateLimitPartition.Ip;  // per-client-IP by default
 });
 
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 app.UseRouting();          // before the middleware, so [RateLimit] endpoint metadata is visible
@@ -45,29 +48,40 @@ app.MapGet("/", () => Results.Ok(new
 {
     message = "GM.RateLimiting sample",
     backend = string.IsNullOrWhiteSpace(redisConnection) ? "in-memory + lock (single process)" : "redis atomic (cross-instance)",
-    try_it = new[]
-    {
-        "GET  /api/data   — fixed window 3/min per (IP, endpoint); 4th call → 429 + Retry-After",
-        "GET  /api/other  — same policy, independent budget (endpoint is part of the key)",
-        "GET  /search     — sliding window 10/10s",
-        "GET  /burst      — token bucket, capacity 5, refill 2/s",
-    },
+    try_it = Program.TryItEndpoints,
 }));
 
 // Fixed window, partitioned by IP *and* endpoint — each endpoint has its own per-client budget.
-app.MapGet("/api/data", () => Results.Ok(new { data = "ok", at = DateTimeOffset.UtcNow }))
+app.MapGet("/api/v1/data", () => Results.Ok(new { data = "ok", at = DateTimeOffset.UtcNow }))
    .WithMetadata(new RateLimitAttribute("api") { Partition = RateLimitPartition.Ip | RateLimitPartition.Endpoint });
 
-app.MapGet("/api/other", () => Results.Ok(new { data = "other", at = DateTimeOffset.UtcNow }))
+app.MapGet("/api/v1/other", () => Results.Ok(new { data = "other", at = DateTimeOffset.UtcNow }))
    .WithMetadata(new RateLimitAttribute("api") { Partition = RateLimitPartition.Ip | RateLimitPartition.Endpoint });
 
-app.MapGet("/search", (string? q) => Results.Ok(new { q, results = Array.Empty<string>() }))
+app.MapGet("/api/v1/search", (string? q) => Results.Ok(new { q, results = Array.Empty<string>() }))
    .WithMetadata(new RateLimitAttribute("search"));
 
-app.MapGet("/burst", () => Results.Ok(new { ok = true }))
+app.MapGet("/api/v1/burst", () => Results.Ok(new { ok = true }))
    .WithMetadata(new RateLimitAttribute("burst"));
 
-app.Run();
+// Liveness must not depend on downstream dependencies, so it runs no checks; readiness runs
+// every registered health check (none here yet). See engineering baseline §11.
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready");
 
-// Exposed so the test project can spin the app up with WebApplicationFactory.
-public partial class Program;
+await app.RunAsync();
+
+// Exposed so the integration test project can bootstrap the app via WebApplicationFactory.
+public partial class Program
+{
+    private static readonly string[] TryItEndpoints =
+    [
+        "GET  /api/v1/data   — fixed window 3/min per (IP, endpoint); 4th call → 429 + Retry-After",
+        "GET  /api/v1/other  — same policy, independent budget (endpoint is part of the key)",
+        "GET  /api/v1/search — sliding window 10/10s",
+        "GET  /api/v1/burst  — token bucket, capacity 5, refill 2/s",
+    ];
+
+    // Only used as a WebApplicationFactory<Program> marker; never instantiated directly.
+    protected Program() { }
+}
