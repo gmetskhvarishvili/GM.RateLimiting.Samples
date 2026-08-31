@@ -4,10 +4,6 @@ A runnable ASP.NET Core app demonstrating [GM.RateLimiting](https://github.com/g
 — the middleware, per-endpoint policies, composable key partitions, and `429` responses — with **no
 external infra** (in-memory counters), plus a one-line switch to the atomic Redis store.
 
-> This sample references the sibling source repo by **project path** so it builds against the current
-> code. Once the packages are published, swap the `ProjectReference`s in
-> `GM.RateLimiting.Sample.API.csproj` for `PackageReference`s (see the comment in that file).
-
 ## Run
 
 ```bash
@@ -20,17 +16,18 @@ dotnet run --project GM.RateLimiting.Sample.API
 
 | Endpoint | Policy | Algorithm | Partition |
 | --- | --- | --- | --- |
-| `GET /api/data` | `api` | fixed window, 3 / min | IP + endpoint |
-| `GET /api/other` | `api` | fixed window, 3 / min | IP + endpoint (own budget) |
-| `GET /search` | `search` | sliding window, 10 / 10s | IP |
-| `GET /burst` | `burst` | token bucket, cap 5, refill 2/s | IP |
+| `GET /api/v1/data` | `api` | fixed window, 3 / min | IP + endpoint |
+| `GET /api/v1/other` | `api` | fixed window, 3 / min | IP + endpoint (own budget) |
+| `GET /api/v1/search` | `search` | sliding window, 10 / 10s | IP |
+| `GET /api/v1/burst` | `burst` | token bucket, cap 5, refill 2/s | IP |
 | `GET /` | — | not limited | — |
+| `GET /health/live` / `/health/ready` | — | not limited | — |
 
 ## Try it
 
 ```bash
 # 4th call within a minute trips the limit
-for i in 1 2 3 4; do curl -i -s http://localhost:5000/api/data | head -n 1; done
+for i in 1 2 3 4; do curl -i -s http://localhost:5000/api/v1/data | head -n 1; done
 # HTTP/1.1 200 OK
 # HTTP/1.1 200 OK
 # HTTP/1.1 200 OK
@@ -42,10 +39,10 @@ The `429` carries `Retry-After`, `X-RateLimit-Limit/Remaining/Reset`, and a Prob
 ```json
 { "status": 429, "title": "Too Many Requests",
   "detail": "Rate limit exceeded. Retry after 42 second(s).",
-  "instance": "/api/data", "traceId": "…" }
+  "instance": "/api/v1/data", "traceId": "…" }
 ```
 
-`/api/other` shares the `api` policy but has its **own** budget — the endpoint is part of the key.
+`/api/v1/other` shares the `api` policy but has its **own** budget — the endpoint is part of the key.
 
 ## Cross-instance enforcement (Redis)
 

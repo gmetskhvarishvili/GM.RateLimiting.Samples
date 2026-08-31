@@ -17,7 +17,7 @@ public class RateLimitingSampleTests(WebApplicationFactory<Program> factory) : I
         HttpResponseMessage? limited = null;
         for (var i = 0; i < 4; i++)
         {
-            var response = await client.GetAsync("/api/data");
+            var response = await client.GetAsync("/api/v1/data");
             statuses.Add(response.StatusCode);
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 limited = response;
@@ -28,7 +28,7 @@ public class RateLimitingSampleTests(WebApplicationFactory<Program> factory) : I
 
         Assert.NotNull(limited);
         // Retry-After present and positive.
-        Assert.True(limited!.Headers.RetryAfter?.Delta is { } d && d > TimeSpan.Zero);
+        Assert.True(limited.Headers.RetryAfter?.Delta is { } d && d > TimeSpan.Zero);
         // X-RateLimit-* headers surfaced.
         Assert.True(limited.Headers.Contains("X-RateLimit-Limit"));
         Assert.True(limited.Headers.Contains("X-RateLimit-Remaining"));
@@ -45,12 +45,12 @@ public class RateLimitingSampleTests(WebApplicationFactory<Program> factory) : I
     {
         var client = factory.CreateClient();
 
-        // Exhaust /api/data.
+        // Exhaust /api/v1/data.
         for (var i = 0; i < 4; i++)
-            await client.GetAsync("/api/data");
+            await client.GetAsync("/api/v1/data");
 
-        // /api/other shares the "api" policy but has its own budget (endpoint is part of the key).
-        var other = await client.GetAsync("/api/other");
+        // /api/v1/other shares the "api" policy but has its own budget (endpoint is part of the key).
+        var other = await client.GetAsync("/api/v1/other");
         Assert.Equal(HttpStatusCode.OK, other.StatusCode);
     }
 
@@ -71,9 +71,23 @@ public class RateLimitingSampleTests(WebApplicationFactory<Program> factory) : I
     {
         var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/search");
+        var response = await client.GetAsync("/api/v1/search");
         response.EnsureSuccessStatusCode();
         Assert.True(response.Headers.Contains("X-RateLimit-Limit"));
         Assert.True(response.Headers.Contains("X-RateLimit-Remaining"));
+    }
+
+    [Theory]
+    [InlineData("/health/live")]
+    [InlineData("/health/ready")]
+    public async Task HealthEndpoints_ReportHealthy(string path)
+    {
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Equal("Healthy", body);
     }
 }
